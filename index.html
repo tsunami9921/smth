@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blind Horror Game</title>
+
+<!-- Oyun CSS -->
+<link rel="stylesheet" href="style.css">
+<!-- Main Screen CSS -->
+<link rel="stylesheet" href="mainscreen.css">
+
+</head>
+<body>
+
+<!-- MAIN SCREEN -->
+<div id="mainscreen">
+  <h1 id="title">BLIND HORROR</h1>
+  <button id="playBtn" class="button">PLAY</button>
+  <button id="settingsBtn" class="button">SETTINGS</button>
+  <p id="infoText">Tap PLAY to start the game</p>
+  <div id="soundBar"><div id="soundFill"></div></div>
+  <div id="bgEffect"></div>
+</div>
+
+<!-- OYUN ALANI -->
+<div id="game" style="display:none;">
+  <div id="flashlight"></div>
+  <div id="grain"></div>
+
+  <!-- UI -->
+  <div id="ui">
+    <button id="flashBtn" class="btn">🔦</button>
+    <button id="micBtn" class="btn">🎤</button>
+    <div id="micLevel"><div id="micFill"></div></div>
+    <div id="msg"></div>
+
+    <!-- Joystick & Jump button -->
+    <div id="joystick" style="position:absolute; left:50px; bottom:50px; width:100px; height:100px; background:rgba(255,255,255,0.1); border-radius:50%;"></div>
+    <button id="jumpBtn" style="position:absolute; right:50px; bottom:50px; width:80px; height:80px; border-radius:50%; background:red; color:white; font-size:18px;">JUMP</button>
+  </div>
+</div>
+
+<!-- JS BAĞLANTILARI -->
+<script src="sounds.js"></script>
+<script src="door.js"></script>
+<script src="key.js"></script>
+<script src="android.js"></script>
+<script src="ios.js"></script>
+<script src="joystick.js"></script>
+<script src="game.js"></script>
+<script src="connect.js"></script>
+
+</body>
+</html>
