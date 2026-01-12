@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Blind Horror</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+html,body{
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  background:#000;
+  overflow:hidden;
+  font-family:Arial, sans-serif;
+  color:white;
+}
+
+/* GAME VIEW */
+#game{
+  position:relative;
+  width:100%;
+  height:100%;
+  cursor:crosshair;
+  background:radial-gradient(circle at center,#111 0%,#000 70%);
+}
+
+/* FLASHLIGHT */
+#flashlight{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:radial-gradient(circle at center,
+    rgba(255,255,200,0.25) 0%,
+    rgba(0,0,0,0.95) 60%);
+  opacity:0;
+  transition:opacity .2s;
+}
+
+/* UI */
+#ui{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+}
+
+.btn{
+  pointer-events:auto;
+  background:rgba(0,0,0,0.6);
+  border:1px solid #444;
+  color:white;
+  padding:10px;
+  border-radius:50%;
+  font-size:18px;
+}
+
+/* Flashlight button */
+#flashBtn{
+  position:absolute;
+  right:20px;
+  top:50%;
+}
+
+/* Mic button */
+#micBtn{
+  position:absolute;
+  left:20px;
+  top:20px;
+}
+
+/* Mic level */
+#micLevel{
+  position:absolute;
+  left:50%;
+  bottom:20px;
+  transform:translateX(-50%);
+  width:200px;
+  height:10px;
+  border:1px solid #555;
+}
+#micFill{
+  height:100%;
+  width:0%;
+  background:red;
+}
+
+/* Messages */
+#msg{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  font-size:24px;
+  text-align:center;
+  display:none;
+}
+
+/* Grain */
+#grain{
+  position:absolute;
+  inset:0;
+  background:url("https://i.imgur.com/8bKQX5n.png");
+  opacity:0.08;
+  pointer-events:none;
+}
+</style>
+</head>
+
+<body>
+<div id="game">
+  <div id="flashlight"></div>
+  <div id="grain"></div>
+
+  <div id="ui">
+    <button id="flashBtn" class="btn">🔦</button>
+    <button id="micBtn" class="btn">🎤</button>
+
+    <div id="micLevel">
+      <div id="micFill"></div>
+    </div>
+
+    <div id="msg"></div>
+  </div>
+</div>
+
+<script>
+/* ===== BASIC STATE ===== */
+let flashlightOn=false;
+let micOn=false;
+let micLevel=0;
+let playerNoise=0;
+let monsterDistance=100;
+let hasKey=false;
+let gameOver=false;
+
+/* POINTER LOCK */
+document.body.addEventListener("click",()=>{
+  document.body.requestPointerLock();
+});
+
+/* FLASHLIGHT */
+const flash=document.getElementById("flashlight");
+document.getElementById("flashBtn").onclick=()=>{
+  flashlightOn=!flashlightOn;
+  flash.style.opacity=flashlightOn?1:0;
+};
+
+/* FLICKER */
+setInterval(()=>{
+  if(flashlightOn){
+    flash.style.opacity=0.8+Math.random()*0.2;
+  }
+},120);
+
+/* MIC */
+const micBtn=document.getElementById("micBtn");
+const micFill=document.getElementById("micFill");
+micBtn.onclick=async()=>{
+  micOn=!micOn;
+  micBtn.style.borderColor=micOn?"red":"#444";
+  if(micOn) startMic();
+};
+
+/* MICROPHONE INPUT */
+let analyser;
+function startMic(){
+  navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+    const ctx=new AudioContext();
+    const src=ctx.createMediaStreamSource(stream);
+    analyser=ctx.createAnalyser();
+    src.connect(analyser);
+  });
+}
+
+/* MONSTER AI LOOP */
+setInterval(()=>{
+  if(gameOver) return;
+
+  if(micOn && analyser){
+    let data=new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+    micLevel=data.reduce((a,b)=>a+b)/data.length;
+    micFill.style.width=Math.min(100,micLevel)+"%";
+    playerNoise=micLevel;
+  }else{
+    micFill.style.width="0%";
+    playerNoise=0;
+  }
+
+  /* Monster reacts to sound */
+  monsterDistance-=playerNoise*0.02;
+
+  if(monsterDistance<30){
+    document.getElementById("msg").innerText="You hear breathing...";
+    document.getElementById("msg").style.display="block";
+  }
+
+  if(monsterDistance<=0){
+    endGame("JUMPSCARE!\nGAME OVER");
+  }
+
+},100);
+
+/* KEY PICKUP SIMULATION */
+setTimeout(()=>{
+  hasKey=true;
+  showMsg("You found a key");
+},15000);
+
+/* EXIT DOOR */
+setTimeout(()=>{
+  if(hasKey){
+    endGame("YOU ESCAPED!");
+  }
+},30000);
+
+function showMsg(t){
+  const m=document.getElementById("msg");
+  m.innerText=t;
+  m.style.display="block";
+  setTimeout(()=>m.style.display="none",3000);
+}
+
+function endGame(t){
+  gameOver=true;
+  const m=document.getElementById("msg");
+  m.innerText=t;
+  m.style.display="block";
+}
+</script>
+</body>
+</html>
