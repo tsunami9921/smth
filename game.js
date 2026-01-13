@@ -9,181 +9,191 @@ let monsterDistance = 100;
 let hasKey = false;
 let gameOver = false;
 
-/* PLAYER POSITION */
-let player = {
-  x:0,
-  y:0,
-  z:0,
-  rotationY:0,
-  rotationX:0,
-  speed:0.1,
-  runMultiplier:2,
-  crouchMultiplier:0.5,
-  jumping:false
+/* THREE.JS SCENE */
+let scene, camera, renderer;
+let flashlight;
+let monster, keys = [], doors = [];
+
+/* INIT 3D SCENE */
+function startGame(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.set(0,1.6,0); // FPS height
+
+  renderer = new THREE.WebGLRenderer({canvas:document.getElementById("gameCanvas")});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  /* LIGHTS */
+  const ambientLight = new THREE.AmbientLight(0x333333);
+  scene.add(ambientLight);
+
+  flashlight = new THREE.SpotLight(0xffffff,1,10,Math.PI/6,0.5);
+  flashlight.position.set(0,1.6,0);
+  flashlight.target.position.set(0,1.6,-1);
+  flashlight.visible = false;
+  scene.add(flashlight);
+  scene.add(flashlight.target);
+
+  /* FLOOR */
+  const floorGeo = new THREE.BoxGeometry(20,0.1,20);
+  const floorMat = new THREE.MeshStandardMaterial({color:0x111111});
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.position.y = 0;
+  scene.add(floor);
+
+  /* WALLS (SIMPLE CUBE) */
+  const wallMat = new THREE.MeshStandardMaterial({color:0x222222});
+  const wall1 = new THREE.Mesh(new THREE.BoxGeometry(20,3,0.2), wallMat);
+  wall1.position.set(0,1.5,-10);
+  scene.add(wall1);
+  const wall2 = new THREE.Mesh(new THREE.BoxGeometry(20,3,0.2), wallMat);
+  wall2.position.set(0,1.5,10);
+  scene.add(wall2);
+  const wall3 = new THREE.Mesh(new THREE.BoxGeometry(0.2,3,20), wallMat);
+  wall3.position.set(-10,1.5,0);
+  scene.add(wall3);
+  const wall4 = new THREE.Mesh(new THREE.BoxGeometry(0.2,3,20), wallMat);
+  wall4.position.set(10,1.5,0);
+  scene.add(wall4);
+
+  /* MONSTER */
+  const monsterGeo = new THREE.BoxGeometry(0.8,1.8,0.8);
+  const monsterMat = new THREE.MeshStandardMaterial({color:0xff0000});
+  monster = new THREE.Mesh(monsterGeo, monsterMat);
+  monster.position.set(5,0.9,5);
+  scene.add(monster);
+
+  /* KEYS */
+  const keyGeo = new THREE.BoxGeometry(0.2,0.2,0.2);
+  const keyMat = new THREE.MeshStandardMaterial({color:0xffff00});
+  const key1 = new THREE.Mesh(keyGeo,keyMat);
+  key1.position.set(-5,0.1,-5);
+  scene.add(key1);
+  keys.push({id:"key1", mesh:key1, collected:false});
+  Key.register({id:"key1", collected:false, element:key1});
+
+  /* DOOR */
+  const doorGeo = new THREE.BoxGeometry(1,2,0.2);
+  const doorMat = new THREE.MeshStandardMaterial({color:0x4444ff});
+  const door1 = new THREE.Mesh(doorGeo,doorMat);
+  door1.position.set(0,1,9.9);
+  scene.add(door1);
+  doors.push({id:"door1", mesh:door1, locked:true, opened:false});
+  Door.register({id:"door1", locked:true, opened:false, element:door1});
+
+  animate();
+}
+
+/* FLASHLIGHT TOGGLE */
+document.getElementById("flashBtn").onclick = ()=>{
+  flashlightOn = !flashlightOn;
+  flashlight.visible = flashlightOn;
 };
 
-/* INPUT STATE */
-let input = {
-  forward:false,
-  backward:false,
-  left:false,
-  right:false,
-  run:false,
-  crouch:false
-};
+/* PLAYER MOVEMENT */
+let moveForward=false, moveBackward=false, moveLeft=false, moveRight=false;
+let velocity = new THREE.Vector3();
 
-/* POINTER LOCK */
-document.body.addEventListener("click",()=>{
-  document.body.requestPointerLock();
+document.addEventListener("keydown", e=>{
+  if(e.key=="w") moveForward=true;
+  if(e.key=="s") moveBackward=true;
+  if(e.key=="a") moveLeft=true;
+  if(e.key=="d") moveRight=true;
+});
+document.addEventListener("keyup", e=>{
+  if(e.key=="w") moveForward=false;
+  if(e.key=="s") moveBackward=false;
+  if(e.key=="a") moveLeft=false;
+  if(e.key=="d") moveRight=false;
 });
 
 /* MOUSE LOOK */
+let pitch = 0, yaw = 0;
+document.body.addEventListener("click",()=>{document.body.requestPointerLock();});
 document.addEventListener("mousemove", e=>{
   if(document.pointerLockElement){
-    player.rotationY += e.movementX * 0.002;
-    player.rotationX -= e.movementY * 0.002;
-    if(player.rotationX > Math.PI/2) player.rotationX=Math.PI/2;
-    if(player.rotationX < -Math.PI/2) player.rotationX=-Math.PI/2;
+    yaw -= e.movementX*0.002;
+    pitch -= e.movementY*0.002;
+    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
   }
 });
 
-/* KEYBOARD INPUT */
-document.addEventListener("keydown", e=>{
-  if(e.key==="w") input.forward=true;
-  if(e.key==="s") input.backward=true;
-  if(e.key==="a") input.left=true;
-  if(e.key==="d") input.right=true;
-  if(e.key==="Shift") input.run=true;
-  if(e.key==="Control") input.crouch=true;
-});
+/* GAME LOOP */
+function animate(){
+  requestAnimationFrame(animate);
 
-document.addEventListener("keyup", e=>{
-  if(e.key==="w") input.forward=false;
-  if(e.key==="s") input.backward=false;
-  if(e.key==="a") input.left=false;
-  if(e.key==="d") input.right=false;
-  if(e.key==="Shift") input.run=false;
-  if(e.key==="Control") input.crouch=false;
-});
+  // PLAYER POSITION UPDATE
+  let direction = new THREE.Vector3();
+  if(moveForward) direction.z -= 0.1;
+  if(moveBackward) direction.z += 0.1;
+  if(moveLeft) direction.x -= 0.1;
+  if(moveRight) direction.x += 0.1;
 
-/* FLASHLIGHT */
-const flash = document.getElementById("flashlight");
-document.getElementById("flashBtn").onclick=()=>{
-  flashlightOn=!flashlightOn;
-  flash.style.opacity = flashlightOn ? 1 : 0;
-};
+  // Joystick
+  direction.x += Joystick.x*0.1;
+  direction.z += Joystick.y*0.1;
+  if(Joystick.jump) velocity.y = 0.2;
 
-/* FLASHLIGHT FLICKER */
-setInterval(()=>{
-  if(flashlightOn){
-    flash.style.opacity = 0.8 + Math.random()*0.2;
+  velocity.x += direction.x;
+  velocity.z += direction.z;
+
+  // Update camera
+  camera.position.x += velocity.x;
+  camera.position.z += velocity.z;
+  camera.position.y = 1.6;
+  velocity.multiplyScalar(0.8); // friction
+
+  // Camera rotation
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+
+  // Flashlight follows camera
+  flashlight.position.copy(camera.position);
+  flashlight.target.position.set(
+    camera.position.x + Math.sin(yaw),
+    camera.position.y + Math.sin(pitch),
+    camera.position.z + Math.cos(yaw)
+  );
+
+  // KEY COLLISION
+  keys.forEach(k=>{
+    if(!k.collected && camera.position.distanceTo(k.mesh.position)<0.5){
+      Key.collect(k.id);
+      k.collected=true;
+      scene.remove(k.mesh);
+    }
+  });
+
+  // DOOR COLLISION
+  doors.forEach(d=>{
+    if(camera.position.distanceTo(d.mesh.position)<1){
+      if(Key.allCollected() && d.locked){
+        Door.unlock(d.id);
+        d.mesh.material.color.set(0x00ff00);
+      }
+    }
+  });
+
+  // MONSTER AI
+  let monsterDir = new THREE.Vector3(camera.position.x - monster.position.x,0,camera.position.z - monster.position.z);
+  if(playerNoise>0 && !gameOver){
+    monsterDir.normalize();
+    monster.position.add(monsterDir.multiplyScalar(playerNoise*0.01));
+    if(monster.position.distanceTo(camera.position)<1){
+      endGame("JUMPSCARE! GAME OVER");
+      Sounds.play("jumpscare");
+    }
   }
-},120);
 
-/* MICROPHONE */
-const micBtn = document.getElementById("micBtn");
-const micFill = document.getElementById("micFill");
-let analyser;
-
-micBtn.onclick=async()=>{
-  micOn = !micOn;
-  micBtn.style.borderColor = micOn ? "red":"#444";
-  if(micOn) startMic();
-};
-
-/* MICROPHONE INPUT */
-function startMic(){
-  navigator.mediaDevices.getUserMedia({audio:true})
-  .then(stream=>{
-    const ctx = new AudioContext();
-    const src = ctx.createMediaStreamSource(stream);
-    analyser = ctx.createAnalyser();
-    src.connect(analyser);
-  })
-  .catch(()=>alert("Microphone access denied!"));
+  renderer.render(scene,camera);
 }
 
-/* MONSTER AI LOOP */
-setInterval(()=>{
-  if(gameOver) return;
-
-  // MIC INPUT
-  if(micOn && analyser){
-    let data = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(data);
-    micLevel = data.reduce((a,b)=>a+b)/data.length;
-    micFill.style.width = Math.min(100,micLevel)+"%";
-    playerNoise = micLevel;
-  }else{
-    micFill.style.width="0%";
-    playerNoise=0;
-  }
-
-  // MONSTER MOVES TOWARD SOUND
-  monsterDistance -= playerNoise*0.02;
-
-  if(monsterDistance < 30 && monsterDistance > 0){
-    showMsg("You hear breathing...");
-    Sounds.play('monster');
-  }
-
-  if(monsterDistance <= 0){
-    endGame("JUMPSCARE!\nGAME OVER");
-    Sounds.play('jumpscare');
-  }
-},100);
-
-/* PLAYER MOVEMENT LOOP */
-function updatePlayer(){
-  if(gameOver) return;
-  let speed = player.speed;
-  if(input.run) speed *= player.runMultiplier;
-  if(input.crouch) speed *= player.crouchMultiplier;
-
-  if(input.forward) player.z += speed;
-  if(input.backward) player.z -= speed;
-  if(input.left) player.x -= speed;
-  if(input.right) player.x += speed;
-
-  // Joystick control
-  player.x += Joystick.x*0.01;
-  player.z += Joystick.y*0.01;
-
-  // Jump
-  if(Joystick.jump && !player.jumping){
-    player.jumping = true;
-    setTimeout(()=>player.jumping=false, 500);
-  }
-
-  requestAnimationFrame(updatePlayer);
-}
-updatePlayer();
-
-/* KEY & DOOR SIMULATION */
-setTimeout(()=>{
-  hasKey=true;
-  showMsg("You found a key!");
-  Sounds.play('key');
-},15000);
-
-setTimeout(()=>{
-  if(hasKey && !gameOver){
-    endGame("YOU ESCAPED!");
-    Sounds.play('door');
-  }
-},30000);
-
-/* UI HELPERS */
-function showMsg(t){
-  const m=document.getElementById("msg");
-  m.innerText = t;
-  m.style.display="block";
-  setTimeout(()=>{ if(!gameOver) m.style.display="none"; },3000);
-}
-
-function endGame(t){
+/* END GAME */
+function endGame(msg){
   gameOver=true;
-  const m=document.getElementById("msg");
-  m.innerText=t;
-  m.style.display="block";
+  document.getElementById("msg").innerText=msg;
+  document.getElementById("msg").style.display="block";
+  console.log(msg);
 }
